@@ -1,0 +1,14 @@
+{
+  "name": "deepseek-plan-service",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "abort-controller": "^3.0.0",
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0"
+  }
+}
