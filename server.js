@@ -6,7 +6,7 @@ const app = express();
 
 const PORT = Number(process.env.PORT || 80);
 const DEEPSEEK_API_KEY = (process.env.DEEPSEEK_API_KEY || '').trim();
-const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 12000);
+const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 8000);
 
 const COACH_MESSAGES = [
   '先别求全，先动第一步。',
@@ -23,6 +23,10 @@ const QUICK_TIPS = [
 ];
 
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  console.log(`[request] ${req.method} ${req.path}`);
+  next();
+});
 
 function safeJsonParse(rawText) {
   if (!rawText) {
@@ -109,6 +113,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    console.log(`[deepseek] request start timeout=${timeoutMs}ms`);
     return await fetch(url, {
       ...options,
       signal: controller.signal
@@ -124,6 +129,8 @@ async function fetchWithTimeout(url, options, timeoutMs) {
 }
 
 async function createPlan(task) {
+  console.log(`[plan] task="${task}"`);
+
   if (!DEEPSEEK_API_KEY) {
     throw new Error('服务端未配置 DEEPSEEK_API_KEY');
   }
@@ -141,8 +148,11 @@ async function createPlan(task) {
     DEEPSEEK_TIMEOUT_MS
   );
 
+  console.log(`[deepseek] response status=${response.status}`);
+
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('[deepseek] non-200 response:', errorText);
     throw new Error(`DeepSeek 请求失败：${response.status} ${errorText}`);
   }
 
@@ -153,11 +163,15 @@ async function createPlan(task) {
 
   const parsed = safeJsonParse(content);
   if (!parsed) {
+    console.error('[deepseek] invalid json content:', content);
     throw new Error('DeepSeek 返回内容不是合法 JSON');
   }
 
   const plan = normalizePlan(task, parsed);
-  if (!plan.steps.length) {
+  console.log(`[plan] normalized steps=${plan.steps.length}`);
+
+  if (plan.steps.length !== 4) {
+    console.error('[plan] invalid steps payload:', JSON.stringify(parsed));
     throw new Error('DeepSeek 未返回有效步骤');
   }
 
@@ -182,6 +196,7 @@ app.post('/plan', async (req, res) => {
 
   try {
     const plan = await createPlan(task);
+    console.log('[plan] success');
     return res.json({
       success: true,
       plan
